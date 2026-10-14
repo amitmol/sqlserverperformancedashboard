@@ -1,0 +1,67 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+
+const base = 'http://127.0.0.1:5080';
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+let count = 0;
+const passed = name => { count++; console.log('PASS ' + name); };
+async function settled() {
+  await page.waitForFunction(() => document.querySelector('#dashboard')?.getAttribute('aria-busy') === 'false');
+  assert.equal(await page.locator('#error').isVisible(), false, await page.locator('#error').textContent());
+}
+try {
+  await page.goto(base); await settled();
+  assert.equal(await page.locator('.card').count(), 8); passed('Razor overview renders eight persisted KPI cards');
+  assert.match(await page.locator('.cards').textContent(), /120/); passed('batch throughput displays 120');
+  assert.match(await page.locator('.synthetic-banner').textContent(), /Synthetic data.*demonstration only/); passed('synthetic banner retained');
+  assert.equal(await page.locator('svg.chart').count(), 1); passed('gap-aware throughput chart rendered');
+  await page.locator('[data-section="Queries"]').click(); await settled();
+  assert.match(await page.locator('#dashboard').textContent(), /3,000/); passed('completed-query table uses persisted CPU deltas');
+  await page.locator('#scenario').selectOption('high-query-reads'); await settled();
+  await page.locator('[aria-label="Sort metric"]').selectOption('logicalReads'); await settled();
+  assert.match(await page.locator('tbody tr').first().textContent(), /5,000,000/); passed('high-read scenario ranks interval reads');
+  await page.locator('#scenario').selectOption('blocking'); await settled();
+  await page.locator('[data-section="Blocking"]').click(); await settled();
+  assert.match(await page.locator('.chain').textContent(), /Session 51.*sleeping/); passed('sleeping blocker root visible');
+  assert.equal(await page.locator('.chain .child').count(), 2); passed('two blocked descendants rendered');
+  const samples = await page.locator('[aria-label="Blocking sample"] option').allTextContents();
+  assert.equal(samples.length, 3); passed('exact historical sample picker contains two captures');
+  const oldSample = await page.locator('[aria-label="Blocking sample"] option').last().getAttribute('value');
+  await page.locator('[aria-label="Blocking sample"]').selectOption(oldSample); await settled();
+  assert.match(await page.locator('.toolbar').textContent(), /Historical sample/); passed('historical mode explicit');
+  await page.locator('#scenario').selectOption('normal'); await settled();
+  await page.locator('[data-section="Waits"]').click(); await settled();
+  assert.match(await page.locator('#dashboard').textContent(), /75%/); passed('included wait share is 75 percent');
+  await page.locator('input[type="checkbox"]').check(); await settled();
+  assert.match(await page.locator('#dashboard').textContent(), /SLEEP_TASK/); passed('excluded waits can be included');
+  await page.locator('#scenario').selectOption('io-slowdown'); await settled();
+  await page.locator('[data-section="FileIo"]').click(); await settled();
+  assert.match(await page.locator('tbody tr').filter({ hasText: 'DemoSales_Data' }).textContent(), /50/); passed('I/O slowdown uses persisted 50 ms/read');
+  await page.locator('#scenario').selectOption('no-activity'); await settled();
+  assert.match(await page.locator('#dashboard').textContent(), /no Activity/i); passed('undefined idle latency labelled');
+  await page.locator('#scenario').selectOption('partial'); await settled();
+  assert.equal(await page.locator('#notice').isVisible(), true); passed('partial collection notice visible');
+  await page.locator('#pause').click(); assert.equal(await page.locator('#pause').textContent(), 'Resume'); passed('pause/resume control works');
+  await page.locator('#scenario').selectOption('normal'); await settled();
+  await page.locator('[data-section="Overview"]').click(); await settled();
+  await mkdir('../../artifacts', { recursive: true });
+  await page.screenshot({ path: '../../artifacts/dashboard-overview.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: '../../artifacts/dashboard-mobile.png', fullPage: true });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true); passed('mobile page has no horizontal overflow');
+  const query = 'instanceId=11111111-1111-1111-1111-111111111111&sourceMode=synthetic&scenarioId=normal';
+  const invalid = await page.request.get(base + '/SqlMonitoringData/Queries?' + query + '&pageSize=9999');
+  assert.equal(invalid.status(), 400); assert.equal((await invalid.json()).error.code, 'invalidFilter'); passed('HTTP pagination limit enforced with safe JSON error');
+  const duplicate = await page.request.get(base + '/SqlMonitoringData/Overview?' + query + '&scenarioId=blocking');
+  assert.equal(duplicate.status(), 400); passed('duplicate filters rejected');
+  const denied = await page.request.get(base + '/SqlMonitoringData/Overview?instanceId=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa&sourceMode=synthetic&scenarioId=normal');
+  assert.equal(denied.status(), 403); passed('server claim limits instance access');
+  const host = await page.request.get(base, { headers: { Host: 'untrusted.invalid' } });
+  assert.equal(host.status(), 400); passed('untrusted Host header rejected');
+  assert.deepEqual(errors, []); passed('no browser JavaScript exceptions');
+  console.log('Verified ' + count + ' Chrome/HTTP checks.');
+} finally { await browser.close(); }

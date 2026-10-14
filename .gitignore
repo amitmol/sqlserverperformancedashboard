@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+.vs/
+artifacts/
+*.user
+*.local.json
+*.local.config
+.env
+**/node_modules/

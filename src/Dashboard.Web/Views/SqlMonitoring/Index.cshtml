@@ -1,0 +1,34 @@
+<div class="app" data-context-url="@Url.Action("Context", "SqlMonitoringData")" data-api-root="@Url.Content("~/SqlMonitoringData/")">
+    <aside class="sidebar">
+        <a class="brand" href="/" aria-label="SQL Server Monitoring home"><span class="brand-mark">S</span><span>SQL Monitor<small>LOCAL DEVELOPMENT</small></span></a>
+        <div class="nav-label">MONITORING</div>
+        <nav aria-label="Dashboard sections">
+            <button class="nav-item selected" data-section="Overview" aria-current="page"><span>◫</span> Overview</button>
+            <button class="nav-item" data-section="Queries"><span>≡</span> Expensive Queries</button>
+            <button class="nav-item" data-section="Blocking"><span>⑂</span> Blocking</button>
+            <button class="nav-item" data-section="Waits"><span>◷</span> Wait Statistics</button>
+            <button class="nav-item" data-section="FileIo"><span>▤</span> Database File I/O</button>
+        </nav>
+        <div class="sidebar-note"><span class="status-dot"></span> Local development database<p>Synthetic snapshots only<br />SQLDashboard_Development</p></div>
+    </aside>
+    <main>
+        <header class="topbar"><span>Workspace <span class="muted">/</span> SQL Server Monitoring</span><span class="local-badge">LOCAL ONLY</span></header>
+        <div class="content">
+            <div class="page-heading"><div><p class="eyebrow">DATABASE OPERATIONS</p><h1 id="page-title">Overview</h1><p id="page-subtitle">Understand query activity, blocking, and database performance.</p></div><div class="heading-status"><span class="status-dot"></span> Synthetic snapshot storage</div></div>
+            <div class="synthetic-banner"><strong>SYNTHETIC DATA</strong><span>@DashboardService.SyntheticLabel</span></div>
+            <form id="filters" class="filters">
+                <label>Instance<select id="instance"><option value="11111111-1111-1111-1111-111111111111">DEMO-SQL-01</option></select></label>
+                <label>Database<select id="database"><option value="">All databases</option></select></label>
+                <label>Scenario<select id="scenario"><option value="normal">Normal activity</option><option value="blocking">Blocking chain</option><option value="high-query-reads">High query reads</option><option value="io-slowdown">File I/O slowdown</option><option value="no-activity">No activity</option><option value="counter-reset">Counter reset</option><option value="weighted-io">Weighted I/O</option><option value="gap">Collection gap</option><option value="partial">Partial capture</option></select></label>
+                <label>Time range<select id="range"><option value="15m">Last 15 minutes</option><option value="1h">Last hour</option><option value="24h">Last 24 hours</option><option value="custom">Custom UTC range</option></select></label>
+                <button class="button primary" type="submit">↻ Refresh</button><button class="button" id="pause" type="button" aria-pressed="false">Pause</button>
+                <div id="custom-range" hidden><label>From UTC<input id="fromUtc" type="datetime-local" step="1" /></label><label>To UTC<input id="toUtc" type="datetime-local" step="1" /></label></div>
+            </form>
+            <div class="context-line"><span id="capture-context">Loading snapshot context…</span><span id="refresh-state">Auto-refresh · 15 seconds · UTC</span></div>
+            <div id="notice" role="status" aria-live="polite" hidden></div>
+            <div id="error" role="alert" hidden></div>
+            <section id="dashboard" aria-label="Monitoring results" aria-busy="true"><div class="loading">Loading monitoring snapshots…</div></section>
+            <footer>Read-only synthetic demonstration <span>UTC timestamps · No live collector · Local development identity</span></footer>
+        </div>
+    </main>
+</div>
